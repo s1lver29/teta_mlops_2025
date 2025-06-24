@@ -1,0 +1,10 @@
+defaults:
+  - model
+  - logging@logging
+  - _self_
+
+train: false
+train_data_path: "./train/train.csv"
+model_path: "./models/model.cbm"
+input_dir: "./input"
+output_dir: "./output"
