@@ -122,6 +122,10 @@ random_state: 42                 # Фиксация случайности
 - **OS**: Linux/macOS/Windows с WSL2
 
 ### Первоначальная настройка
+Для клонирования репозитория:
+```bash
+git clone https://github.com/s1lver29/teta_mlops_2025.git -b homework_1
+```
 
 1. **Скачивание данных**
    ```bash
