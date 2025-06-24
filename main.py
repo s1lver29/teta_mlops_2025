@@ -37,10 +37,8 @@ class InputFileHandler(FileSystemEventHandler):
         logger.info("Detected file for scoring: %s", input_path)
 
         # try:
-        train_data = (
-            pd.read_csv(self.train_data_path).drop(columns="target").sample(1000).reset_index()
-        )
-        data = pd.read_csv(input_path).sample(1000).reset_index()
+        train_data = pd.read_csv(self.train_data_path).drop(columns="target").reset_index()
+        data = pd.read_csv(input_path).reset_index()
 
         train_data["test_columns"] = 0
         data["test_columns"] = 1
