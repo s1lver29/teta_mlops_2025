@@ -111,21 +111,12 @@ docker exec -it db_scoring_model_result psql -U fraud_user -d fraud_detection
 \dt
 SELECT COUNT(*) FROM scoring_results;
 SELECT * FROM scoring_results ORDER BY created_at DESC LIMIT 5;
+```
 
 ## 📊 Мониторинг
 
 - **Логи ML сервиса**: `docker logs fraud_model`
 - **Kafka UI**: `http://localhost:8080`
 - **Статус БД**: `docker logs db_scoring_model_result`
-
-## ⚙️ Конфигурация
-
-Основные настройки в файле `.env`:
-```env
-KAFKA_BROKER=kafka:9092
-KAFKA_TRANSACTIONS_TOPIC=transactions
-KAFKA_SCORING_TOPIC=scoring
-POSTGRES_DB=fraud_detection
-```
 
 
