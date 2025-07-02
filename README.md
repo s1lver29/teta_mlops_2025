@@ -1,6 +1,6 @@
 # Fraud Detection Service
 
-Сервис детекции мошенничества в реальном времени с использованием Kafka и CatBoost., разработанный на основе данных соревнования [Kaggle Teta ML 2025](https://www.kaggle.com/competitions/teta-ml-1-2025).
+Сервис детекции мошенничества в реальном времени с использованием Kafka и CatBoost, разработанный на основе данных соревнования [Kaggle Teta ML 2025](https://www.kaggle.com/competitions/teta-ml-1-2025).
 
 ## 📋 Описание
 
