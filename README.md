@@ -1,277 +1,131 @@
 # Fraud Detection Service
 
-Автоматический сервис обнаружения мошеннических транзакций, разработанный на основе данных соревнования [Kaggle Teta ML 2025](https://www.kaggle.com/competitions/teta-ml-1-2025).
+Сервис детекции мошенничества в реальном времени с использованием Kafka и CatBoost., разработанный на основе данных соревнования [Kaggle Teta ML 2025](https://www.kaggle.com/competitions/teta-ml-1-2025).
 
 ## 📋 Описание
 
-Сервис представляет собой полнофункциональное ML-решение для детекции фрода в финансовых транзакциях. Обработка данных происходит в batch-режиме через автоматический мониторинг входной директории. При появлении новых CSV файлов сервис автоматически:
+Система обрабатывает транзакции через Kafka, применяет [ML-модель](https://github.com/s1lver29/teta_mlops_2025/tree/homework_1) для детекции фрода и предоставляет веб-интерфейс для мониторинга результатов.
 
-- 🔄 Выполняет предобработку данных с feature engineering
-- 🤖 Применяет обученную модель CatBoost для предсказания
-- 📊 Сохраняет результаты и дополнительные артефакты
+## 🏗️ Архитектура
 
-**Ключевые особенности:**
-- Автоматический мониторинг файловой системы с помощью watchdog
-- Полная контейнеризация с Docker
-- Конфигурация через Hydra YAML файлы
-- Структурированное логирование
-- Создание дополнительных артефактов для анализа
+```
+📊 Web Interface (Streamlit) → 📡 Kafka → 🤖 ML Service → 💾 PostgreSQL
+```
+## 🚀 Быстрый старт
 
-## 🏗️ Архитектура решения
+### 1. Предварительные требования
+- Docker & Docker Compose
+- Файл `train.csv` в папке `./fraud_service/train/`
+
+### 2. Запуск системы
+```bash
+# Клонирование и переход в директорию
+git clone clone https://github.com/s1lver29/teta_mlops_2025.git -b homework_2
+cd teta_mlops_2025
+mv .env.example .env
+
+docker-compose up --build
+```
+
+### 3. Проверка готовности
+Дождитесь сообщений о готовности всех сервисов:
+- ✅ Kafka topics created
+- ✅ Fraud service started  
+- ✅ Scoring consumer connected to DB
+- ✅ Streamlit interface ready
+
+
+### 4. Доступ к интерфейсам
+
+| Сервис | URL (по умолчанию в конфигурации) | Описание |
+|--------|-----|----------|
+| 🌐 **Web Interface** | http://localhost:8501 | Отправка транзакций и просмотр результатов |
+| 📊 **Kafka UI** | http://localhost:8080 | Мониторинг Kafka топиков и сообщений |
+
+## 📁 Структура проекта
 
 ```
 teta_mlops_2025/
-├── Dockerfile                    # Конфигурация Docker контейнера
-├── docker-compose.yaml          # Оркестрация сервисов
-├── service.log                  # Лог-файл приложения
-├── README.md                    # Документация проекта
-├── main.py                      # Основной файл запуска сервиса
-├── pyproject.toml              # Конфигурация проекта и зависимости
-├── ruff.toml                   # Настройки линтера для качества кода
-├── uv.lock                     # Файл блокировки зависимостей
+├── .env                     # Переменные окружения
+├── docker-compose.yaml      # Оркестрация всех сервисов
+├── README.md               # Документация
 │
-├── config/                     # Конфигурационные файлы Hydra
-│   ├── logging.yaml           # ⚙️ Настройки логирования (консоль + файл)
-│   ├── main.yaml              # 🎯 Основные параметры сервиса
-│   └── model.yaml             # 🤖 Гиперпараметры модели CatBoost
+├── fraud_service/          # ML сервис детекции мошенничества
+│   ├── app.py             # Kafka consumer + CatBoost модель
+│   ├── Dockerfile         # Контейнер ML сервиса
+│   ├── config/            # Конфигурационные файлы
+│   ├── src/               # Исходный код (model.py, preprocessing.py)
+│   ├── models/            # Обученная модель CatBoost
+│   └── train/             # Тренировочные данные
 │
-├── input/                      # 📥 Входная директория (мониторится)
-│   └── test.csv               # Файлы CSV для обработки (автоудаление)
+├── interface/              # Web интерфейс (Streamlit)
+│   ├── app.py             # Streamlit приложение
+│   └── Dockerfile         # Контейнер веб-интерфейса
 │
-├── output/                     # 📤 Выходная директория с результатами
-│   ├── *_predictions_*.csv    # Файлы с предсказаниями
-│   ├── *_feature_importances_*.json  # Важность признаков (опционально)
-│   └── *_density_plot_*.png   # График распределения скоров (опционально)
-│
-├── models/                     # 🧠 Директория с обученными моделями
-│   └── model.cbm              # Веса модели CatBoost
-│
-├── src/                        # 📂 Исходный код приложения
-│   ├── __init__.py
-│   ├── model.py               # Класс-обертка для CatBoost модели
-│   ├── preprocessing.py       # Feature engineering и предобработка
-│   ├── score.py              # Скоринг и создание артефактов
-│   └── train.py              # Обучение и валидация модели
-│
-└── train/                      # 📚 Данные для обучения
-    └── train.csv              # Тренировочный датасет из Kaggle
+└── scoring_consumer/       # Сервис сохранения результатов
+    ├── app.py             # Kafka consumer для записи в БД
+    ├── database.py        # Подключение к PostgreSQL
+    ├── models.py          # SQLAlchemy модели
+    └── Dockerfile         # Контейнер consumer'а
 ```
 
-## 🔍 Особенности реализации
+## 🔧 Использование
 
-### ML Методология
-Детальное описание обработки данных, использованных признаков, обучения модели и валидации доступно в [Jupyter Notebook](https://github.com/s1lver29/teta_ml_2025/blob/73ff5c35409d1263d6669f9ad146b610940ea90e/teta_ml_1_2025_fraud/final_solution.ipynb).
+### Отправка транзакций
+1. Откройте http://localhost:8501
+2. Загрузите CSV файл с транзакциями
+3. Нажмите **Отправить**
+4. Наблюдать процесс обработки в *логах* или K*afka UI*
 
-**Ключевые особенности модели:**
-- **Алгоритм**: CatBoost Classifier с оптимизированными гиперпараметрами
-- **Feature Engineering**: Геолокационные признаки, временные паттерны, rolling-агрегации
-- **Предобработка**: Обработка пропусков, нормализация числовых признаков
+### Просмотр результатов
+- На той же странице нажмите "Посмотреть результаты"
+- Для обновления результатов нажмите снове "Посмотреть результаты"
 
-### Архитектурные решения
-- **File Watcher**: Мониторинг входной директории с помощью библиотеки `watchdog`
-- **Configuration Management**: Hydra для управления YAML конфигурациями
-- **Logging**: Структурированное логирование в консоль и файл с rotation
-- **Containerization**: Docker с multi-stage build для оптимизации размера
-- **Error Handling**: Comprehensive exception handling с детальными логами
+### Формат входных данных
+CSV файл должен содержать столбцы из соревнование (например `test.csv`).
 
-### Создаваемые артефакты
-- **Predictions**: CSV файл с предсказаниями и индексами строк
-- **Feature Importance**: JSON файл с топ-5 важных признаков модели
-- **Density Plot**: PNG график распределения скоров по классам с русскими подписями
+## 🐛 Устранение неполадок
+
+### Проблемы с запуском
+```bash
+# Перезапуск с пересборкой
+docker-compose down
+docker-compose up --build
+
+# Просмотр логов
+docker-compose logs fraud_service
+docker-compose logs interface
+
+```
+
+### Проверка топиков и сообщений
+
+Для просмотра сообщений и их наличия можно через Kafka UI (по умолчанию находится `http://localhost:8080`)
+
+### Проверка данных в БД
+```bash
+# Подключение к PostgreSQL
+docker exec -it db_scoring_model_result psql -U fraud_user -d fraud_detection
+
+# Просмотр результатов
+\dt
+SELECT COUNT(*) FROM scoring_results;
+SELECT * FROM scoring_results ORDER BY created_at DESC LIMIT 5;
+
+## 📊 Мониторинг
+
+- **Логи ML сервиса**: `docker logs fraud_model`
+- **Kafka UI**: `http://localhost:8080`
+- **Статус БД**: `docker logs db_scoring_model_result`
 
 ## ⚙️ Конфигурация
 
-### 📋 Логирование
-Логирование настраивается в файле `config/logging.yaml`. На данный момент в конфиге вывод идет в консоль и файл `service.log`. Используется 3 уровня логирования:
-
-- **DEBUG**: Детальная отладочная информация для разработчиков
-- **INFO**: Основные события системы (обработка файлов, сохранение результатов)  
-- **ERROR**: Ошибки и исключения с полным stacktrace
-
-### 🎯 Основные параметры
-В файле `config/main.yaml` настраиваются ключевые параметры:
-
-```yaml
-train: false                      # Флаг обучения модели (true/false)
-model_path: "./models/model.cbm"  # Путь к обученной модели
-input_dir: "./input"              # Директория входных файлов для мониторинга
-output_dir: "./output"            # Директория результатов скоринга
-train_data_path: "./train/train.csv"  # Путь к тренировочным данным
+Основные настройки в файле `.env`:
+```env
+KAFKA_BROKER=kafka:9092
+KAFKA_TRANSACTIONS_TOPIC=transactions
+KAFKA_SCORING_TOPIC=scoring
+POSTGRES_DB=fraud_detection
 ```
 
-### 🤖 Параметры модели
-В файле `config/model.yaml` определяются гиперпараметры CatBoost:
-
-```yaml
-iterations: 500                   # Количество деревьев
-learning_rate: 0.1               # Скорость обучения
-depth: 8                         # Глубина деревьев
-eval_metric: "AUC"               # Метрика для валидации
-early_stopping_rounds: 50        # Early stopping
-random_state: 42                 # Фиксация случайности
-# и другие...
-```
-
-## 🚀 Инструкция по запуску
-
-### Системные требования
-- **Docker**: версия 20.0+
-- **Docker Compose**: версия 2.0+
-- **RAM**: минимум 6 ГБ для обучения модели
-- **Диск**: ~2 ГБ свободного места
-- **OS**: Linux/macOS/Windows с WSL2
-
-### Первоначальная настройка
-
-1. **Скачивание данных**
-   ```bash
-   # Создайте директорию для тренировочных данных, если ее нет
-   mkdir -p train
-   
-   # Скачайте train.csv из соревнования Kaggle
-   # https://www.kaggle.com/competitions/teta-ml-1-2025
-   # Поместите файл в директорию train/
-   ```
-
-2. **Проверка структуры проекта**
-   ```bash
-   # Убедитесь, что структура соответствует архитектуре
-   ls -la train/train.csv  # Должен существовать
-   ls -la config/         # Директория с конфигами
-   ```
-
-## 🤖 Режимы работы
-
-### Режим скоринга (обычная работа)
-Сервис автоматически переходит в режим ожидания файлов, если есть модель в `/model`:
-
-```yaml
-# config/main.yaml должен содержать (по умолчанию стоит):
-train: false
-```
-
-**Процесс скоринга:**
-1. Поместите CSV файл (например `test.csv` из соревнования ) в директорию `./input/` (**см. 📊 Использование сервиса**)
-2. Сервис автоматически обнаружит файл
-3. Выполнит предобработку и скоринг
-4. Сохранит результаты в `./output/` с временной меткой
-
-### Сборка и запуск Docker контейнера
-
-#### Первоначальная сборка
-```bash
-docker compose build
-
-docker compose up
-```
-или
-
-```bash
-docker compose up --build
-```
-
-#### Запуск в фоновом режиме
-```bash
-docker compose up -d
-
-# Просмотр логов
-docker compose logs -f fraud_model
-```
-
-### Режим обучения модели (eсли модели нет или нужно переобучить)
-
-1. **Подготовьте тренировочные данные**
-   ```bash
-   # Убедитесь, что train.csv находится в директории ./train
-   ls -la train/train.csv
-   ```
-
-2. **Настройте конфигурацию для обучения**
-   ```yaml
-   # В config/main.yaml установите:
-   train: true
-   ```
-
-3. **Запустите обучение**
-   ```bash
-   docker compose up --build
-   ```
-
-   **Ожидаемые логи:**
-   ```
-   fraud_model | INFO - Loading training data from ./train/train.csv
-   fraud_model | INFO - Starting model training...
-   fraud_model | INFO - Model successfully trained and saved to ./models/model.cbm
-   fraud_model | INFO - Waiting for files in the input directory...
-   ```
-
-## 📊 Использование сервиса
-
-### Подача данных на скоринг
-
-1. **Подготовьте CSV файл**
-   - Формат должен соответствовать `test.csv` из соревнования
-   - Файл должен содержать все необходимые колонки
-   - Кодировка: UTF-8
-
-2. **Скопируйте файл в input директорию**
-   ```bash
-   # Пример с файлом my_data.csv
-   cp my_data.csv input/
-   ```
-
-3. **Мониторинг обработки**
-   ```bash
-   # Следите за логами в реальном времени
-   docker compose logs -f fraud_model
-   
-   # Проверяйте output директорию
-   watch -n 1 "ls -la output/"
-   ```
-
-### Получение результатов
-
-После обработки в директории `output/` появятся файлы:
-
-- **`filename_predictions_YYYYMMDD_HHMMSS.csv`** - основной файл с предсказаниями
-- **`filename_feature_importances_YYYYMMDD_HHMMSS.json`** - важность признаков (опционально)
-- **`filename_density_plot_YYYYMMDD_HHMMSS.png`** - график распределения (опционально)
-
-## 🛠️ Разработка и отладка
-
-### Локальная разработка
-```bash
-# Установка зависимостей с помощью uv
-uv sync
-
-uv run ruff check .
-uv run ruff format .
-
-uv run python main.py
-```
-
-### Отладка Docker контейнера
-```bash
-docker compose run --rm fraud_model bash
-
-docker compose logs fraud_model
-
-docker compose down --volumes --remove-orphans
-docker system prune -f
-```
-
-### Тестирование
-```bash
-# Проверка качества кода
-uv run ruff check src/
-uv run ruff format --check .
-```
-
-### Логи мониторинга
-Сервис логирует следующие события:
-- Начало и окончание обработки файлов
-- Время выполнения каждого этапа
-- Количество обработанных записей
-- Статистику предсказаний
-- Ошибки и предупреждения
 

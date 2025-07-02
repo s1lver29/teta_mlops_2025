@@ -1,16 +1,140 @@
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fraud_model
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    networks:
+      - ${KAFKA_GROUP_ID}
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    depends_on:
+      - zookeeper
+    networks:
+      - ${KAFKA_GROUP_ID}
+    ports:
+      - "9095:9095"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_BROKER},PLAINTEXT_HOST://localhost:9095
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: "ERROR"
+      KAFKA_LOG4J_LOGGERS: "kafka=ERROR,kafka.controller=ERROR,state.change.logger=ERROR"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9095", "--list"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.3.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - ${KAFKA_GROUP_ID}
+    restart: on-failure
+    entrypoint: [ "/bin/bash", "-c" ]
+    command: |
+      "
+      echo 'Ожидание готовности Kafka...'
+      while ! kafka-topics --bootstrap-server ${KAFKA_BROKER} --list; do
+        sleep 1
+      done
+
+      echo 'Создание топиков...'
+      kafka-topics --bootstrap-server ${KAFKA_BROKER} --create --if-not-exists --topic transactions --partitions 3 --replication-factor 1 --config retention.ms=604800000
+      kafka-topics --bootstrap-server ${KAFKA_BROKER} --create --if-not-exists --topic scoring --partitions 3 --replication-factor 1 --config retention.ms=604800000
+
+      echo 'Топики успешно созданы:'
+      kafka-topics --bootstrap-server ${KAFKA_BROKER} --list
+      "
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    networks:
+      - ${KAFKA_GROUP_ID}
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${KAFKA_BROKER}
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  db_scoring_model_result:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: fraud_detection
+      POSTGRES_USER: fraud_user
+      POSTGRES_PASSWORD: fraud_password
     volumes:
-      - ./input:/app/input
-      - ./output:/app/output
-    develop:
-      watch:
-        - action: sync
-          path: .
-          target: /app
-          ignore:
-            - .venv/
+      - ./scoring_consumer/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "9432:5432"
+    networks:
+      - ${KAFKA_GROUP_ID}
+
+  fraud_service:
+    build: ./fraud_service
+    container_name: fraud_model
+    networks:
+      - ${KAFKA_GROUP_ID}
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BROKER}
+      KAFKA_TRANSACTIONS_TOPIC: ${KAFKA_TRANSACTIONS_TOPIC}
+      KAFKA_SCORING_TOPIC: ${KAFKA_SCORING_TOPIC}
+    depends_on:
+      - kafka
+      - kafka-setup
+
+  scoring-consumer:
+    build: ./scoring_consumer
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BROKER}
+      KAFKA_SCORING_TOPIC: ${KAFKA_SCORING_TOPIC}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      - kafka
+      - kafka-setup
+      - db_scoring_model_result
+    networks:
+      - ${KAFKA_GROUP_ID}
+
+  interface:
+    build: ./interface
+    container_name: interface_fraud
+    networks:
+      - ${KAFKA_GROUP_ID}
+    environment:
+      KAFKA_BROKERS: ${KAFKA_BROKER}
+      KAFKA_TOPIC: ${KAFKA_TRANSACTIONS_TOPIC}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      - kafka
+      - kafka-setup
+      - db_scoring_model_result
+    ports:
+      - "8501:8501"
+
+networks:
+  ${KAFKA_GROUP_ID}:
+    name: ${KAFKA_GROUP_ID}
+    driver: bridge
